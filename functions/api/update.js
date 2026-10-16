@@ -1,16 +1,5 @@
 // 上报公网 IP：GET /api/update?token=xxx（也支持 POST）
 // IP 取自 Cloudflare 边缘传入的 CF-Connecting-IP，不信任客户端传参
-const SCHEMA = `
-CREATE TABLE IF NOT EXISTS ip_history (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  ip TEXT NOT NULL,
-  changed_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS kv (
-  k TEXT PRIMARY KEY,
-  v TEXT NOT NULL
-);`;
-
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
@@ -20,7 +9,15 @@ export async function onRequest(context) {
   }
   const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
   const now = new Date().toISOString();
-  await env.DB.exec(SCHEMA);
+  await env.DB.exec(`CREATE TABLE IF NOT EXISTS ip_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ip TEXT NOT NULL,
+  changed_at TEXT NOT NULL
+)`);
+  await env.DB.exec(`CREATE TABLE IF NOT EXISTS kv (
+  k TEXT PRIMARY KEY,
+  v TEXT NOT NULL
+)`);
   const last = await env.DB.prepare(
     'SELECT ip FROM ip_history ORDER BY id DESC LIMIT 1').first();
   const changed = !last || last.ip !== ip;
