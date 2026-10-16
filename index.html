@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DDNS · 公网 IP 监控</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    min-height: 100vh; background: #f0f2f5; color: #333;
+    display: flex; justify-content: center; padding: 40px 16px;
+  }
+  .wrap { width: 100%; max-width: 640px; }
+  h1 { font-size: 24px; margin-bottom: 20px; }
+  .card {
+    background: #fff; border-radius: 12px; padding: 28px;
+    box-shadow: 0 2px 12px rgba(0,0,0,.06); margin-bottom: 20px;
+  }
+  .label { font-size: 13px; color: #999; margin-bottom: 8px; }
+  .ip { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 40px; font-weight: 700; letter-spacing: 1px; }
+  .meta { margin-top: 12px; font-size: 14px; color: #666; display: flex; align-items: center; gap: 8px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #ccc; display: inline-block; }
+  .dot.on { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+  .dot.off { background: #ef4444; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #f0f0f0; }
+  th { color: #999; font-weight: 500; font-size: 13px; }
+  .mono { font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .empty { color: #bbb; text-align: center; padding: 24px; }
+  .foot { text-align: center; color: #bbb; font-size: 12px; margin-top: 8px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>🏠 家庭公网 IP</h1>
+    <div class="card">
+      <div class="label">当前 IP</div>
+      <div class="ip" id="ip">加载中…</div>
+      <div class="meta"><span id="status" class="dot"></span><span id="seen">–</span></div>
+    </div>
+    <div class="card">
+      <div class="label">历史变更记录</div>
+      <table id="hist">
+        <thead><tr><th>IP 地址</th><th>变更时间</th></tr></thead>
+        <tbody><tr><td colspan="2" class="empty">加载中…</td></tr></tbody>
+      </table>
+    </div>
+    <p class="foot">路由器每分钟上报一次 · Cloudflare Pages + D1</p>
+  </div>
+<script>
+async function refresh(){
+  try{
+    const d = await (await fetch('/api/latest')).json();
+    document.getElementById('ip').textContent = d.ip || '暂无数据';
+    const seen = d.last_seen ? new Date(d.last_seen) : null;
+    const el = document.getElementById('seen'), dot = document.getElementById('status');
+    if(seen){
+      const mins = Math.max(0, Math.round((Date.now()-seen.getTime())/60000));
+      el.textContent = '最后上报：' + seen.toLocaleString('zh-CN') + '（' + mins + ' 分钟前）';
+      dot.className = 'dot ' + ((Date.now()-seen.getTime()) < 180000 ? 'on' : 'off');
+    } else { el.textContent = '暂无上报'; }
+  }catch(e){ document.getElementById('ip').textContent = '加载失败'; }
+  try{
+    const d = await (await fetch('/api/history?limit=50')).json();
+    const tb = document.querySelector('#hist tbody'); tb.innerHTML = '';
+    (d.history||[]).forEach(h => {
+      const tr = document.createElement('tr');
+      const a = document.createElement('td'); a.className='mono'; a.textContent = h.ip;
+      const b = document.createElement('td'); b.textContent = new Date(h.changed_at).toLocaleString('zh-CN');
+      tr.appendChild(a); tr.appendChild(b); tb.appendChild(tr);
+    });
+    if(!(d.history||[]).length) tb.innerHTML = '<tr><td colspan="2" class="empty">暂无记录</td></tr>';
+  }catch(e){}
+}
+refresh(); setInterval(refresh, 30000);
+</script>
+</body>
+</html>
