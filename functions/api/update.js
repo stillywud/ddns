@@ -9,15 +9,8 @@ export async function onRequest(context) {
   }
   const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
   const now = new Date().toISOString();
-  await env.DB.exec(`CREATE TABLE IF NOT EXISTS ip_history (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  ip TEXT NOT NULL,
-  changed_at TEXT NOT NULL
-)`);
-  await env.DB.exec(`CREATE TABLE IF NOT EXISTS kv (
-  k TEXT PRIMARY KEY,
-  v TEXT NOT NULL
-)`);
+  await env.DB.exec('CREATE TABLE IF NOT EXISTS ip_history (id INTEGER PRIMARY KEY AUTOINCREMENT, ip TEXT NOT NULL, changed_at TEXT NOT NULL)');
+  await env.DB.exec('CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT NOT NULL)');
   const last = await env.DB.prepare(
     'SELECT ip FROM ip_history ORDER BY id DESC LIMIT 1').first();
   const changed = !last || last.ip !== ip;
@@ -25,11 +18,7 @@ export async function onRequest(context) {
     await env.DB.prepare(
       'INSERT INTO ip_history (ip, changed_at) VALUES (?, ?)').bind(ip, now).run();
   }
-  await env.DB.prepare(
-    `INSERT INTO kv (k, v) VALUES ('last_seen', ?)
-     ON CONFLICT(k) DO UPDATE SET v=excluded.v`).bind(now).run();
-  await env.DB.prepare(
-    `INSERT INTO kv (k, v) VALUES ('current_ip', ?)
-     ON CONFLICT(k) DO UPDATE SET v=excluded.v`).bind(ip).run();
+  await env.DB.prepare("INSERT INTO kv (k, v) VALUES ('last_seen', ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(now).run();
+  await env.DB.prepare("INSERT INTO kv (k, v) VALUES ('current_ip', ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(ip).run();
   return Response.json({ ok: true, ip, at: now, changed });
 }
